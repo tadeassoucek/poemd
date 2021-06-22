@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# if there aren't uncommited changes, only push
+git update-index --refresh >/dev/null 2>&1
+if git diff-index --quiet HEAD -- >/dev/null 2>&1; then
+  git push
+  exit $?
+else
+  if scripts/commit $@; then
+    git push
+    exit $?
+  else
+    exit 1
+  fi
+fi

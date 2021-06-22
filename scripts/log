@@ -1,0 +1,25 @@
+#!/bin/bash
+# Usage:  log <info|warn|err> <message>
+
+case $1 in
+  info)
+    COLOR_CODE=36
+    ;;
+
+  warn)
+    LEADER="WARNING: "
+    COLOR_CODE=33
+    ;;
+
+  err)
+    LEADER="ERROR: "
+    COLOR_CODE=31
+    ;;
+
+  *)
+    echo "log: unknown color: \"$1\""
+    exit 1
+    ;;
+esac
+
+printf "\033[${COLOR_CODE};1m=> $LEADER$2\033[0m\n"

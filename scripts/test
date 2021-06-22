@@ -1,0 +1,97 @@
+#!/bin/sh
+
+# If 1, the codebase will be recompiled from scratch.
+# This is to prevent missing dependencies when file names change.
+# Can be circumvented by passing 'use-existing' as one of the arguments.
+RECOMPILE=1
+
+# If 1, `npm test` is run before committing.
+# This is to prevent you from pushing code that doesn't work.
+# Can be circumvented by passing 'dont-test' as one of the arguments.
+RUN_TESTS=1
+
+# If 1, the codebase will be formatted via `npm run format`.
+# This is to enforce a consistent code style.
+# Can be circumvented by passing 'dont-format' as one of the arguments.
+FORMAT=1
+
+# If 1 and RECOMPILE is 1, code that won't compile isn't accepted.
+# This is to prevent, y'know, broken code.
+# Can be circumvented by passing 'allow-broken' as one of the arguments.
+# WARNING: Don't do that unless you have a VERY good reason to!
+REJECT_BROKEN=1
+
+# If 1, code that won't pass testing isn't accepted.
+# Can be circumvented by passing 'allow-failing' as one of the arguments.
+REJECT_FAILING=1
+
+for arg in "$@"; do
+  case $arg in
+    use-existing)
+      RECOMPILE=0
+      ;;
+
+    dont-test)
+      RUN_TESTS=0
+      ;;
+
+    dont-format)
+      FORMAT=0
+      ;;
+
+    allow-broken)
+      REJECT_BROKEN=0
+      scripts/log warn "Allowing broken code. I hope you know what you're doing."
+      ;;
+
+    allow-failing)
+      REJECT_FAILING=0
+      ;;
+
+    *)
+      scripts/log err "Unexpected argument $arg, exiting..."
+      exit 1
+      ;;
+  esac
+done
+
+if [[ $RECOMPILE -eq 1 ]]; then
+  scripts/log info "Recompiling (run with 'use-existing' to prevent this behaviour)..."
+
+  if ! (rm -rf lib && tsc); then
+    if [[ $REJECT_BROKEN -eq 1 ]]; then
+      scripts/log err "Errors when recompiling."
+      exit 1
+    else
+      scripts/log info "Errors when recompiling, continuing anyway..."
+      scripts/log warn "WARNING: I don't like this, but you told me to."
+    fi
+  fi
+else
+  scripts/log info "Not recompiling."
+fi
+
+if [[ $RUN_TESTS -eq 1 ]]; then
+  scripts/log info "Running tests (run with 'dont-test' to prevent this behaviour)..."
+
+  if npm test; then
+    scripts/log info "Tests successful."
+  else
+    if [[ $REJECT_FAILING -eq 1 ]]; then
+      scripts/log err "Tests unsuccessful. This code cannot be accepted."
+      scripts/log info "Either fix the code or rerun with 'allow-failing'."
+      exit 1
+    else
+      scripts/log info "Tests unsuccessful, continuing anyway..."
+    fi
+  fi
+else
+  scripts/log info "Not running tests."
+fi
+
+if [[ $FORMAT -eq 1 ]]; then
+  scripts/log info "Formatting (run with 'dont-format' to prevent this behaviour)..."
+  npm run format
+else
+  scripts/log info "Not formatting."
+fi

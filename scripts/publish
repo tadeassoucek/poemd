@@ -1,0 +1,48 @@
+#!/bin/bash
+
+get_str() {
+  echo $(cat package.json \
+    | jq .$1 \
+    | tr -d '"')
+}
+
+PACKAGE_NAME=$(get_str name)
+PACKAGE_VERSION=$(get_str version)
+
+while true; do
+  read -p "Are you sure you want to publish this package as $PACKAGE_NAME \
+v$PACKAGE_VERSION? [ynp] " response
+
+  case $response in
+    # yes (publish)
+    [yY]* )
+      if scripts/test $@; then
+        if npm publish; then
+          scripts/log info "Adding a tag"
+
+          if git tag -a v$PACKAGE_VERSION && git push --tags; then
+            scripts/log info "Published."
+          else
+            scripts/log err "Tagging failed."
+          fi
+        else
+          scripts/log err "npm-publish failed."
+          exit 1
+        fi
+      else
+        exit 1
+      fi
+      ;;
+
+    # no (quit)
+    [nN]* )
+      exit 0
+      ;;
+
+    # preview published
+    [pP]* )
+      npm pack --dry-run
+      exit 0
+      ;;
+  esac
+done

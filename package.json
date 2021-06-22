@@ -1,0 +1,36 @@
+{
+  "name": "poemd",
+  "version": "0.2.0",
+  "description": "A parser for the PoeMD language.",
+  "main": "lib/main.js",
+  "files": [
+    "lib/**/*.{js,d.ts}",
+    "!lib/index.*"
+  ],
+  "scripts": {
+    "start": "node lib/index.js",
+    "format": "npx prettier --write .",
+    "full-test": "scripts/test",
+    "commit": "scripts/commit",
+    "push": "scripts/push",
+    "publish": "scripts/publish",
+    "test": "npx mocha test/*.test.js --inline-diff"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tadeassoucek/poemd.git"
+  },
+  "author": "Tadeas Soucek",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tadeassoucek/poemd/issues"
+  },
+  "homepage": "https://github.com/tadeassoucek/poemd#readme",
+  "devDependencies": {
+    "@types/node": "^14.14.16",
+    "mocha": "^8.2.1",
+    "prettier": "2.2.1",
+    "timer-node": "^5.0.4",
+    "typescript": "^4.2.2"
+  }
+}

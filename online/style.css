@@ -1,0 +1,193 @@
+:root {
+  --color-dark-background: #1c1f25;
+  --color-background: #282c34;
+  --color-foreground: #abb2bf;
+  --color-gray: #7c828b;
+  --color-red: #e06c75;
+  --color-green: #98c379;
+  --color-yellow: #e5c07b;
+  --color-orange: rgb(209, 154, 102);
+  --color-blue: #61afef;
+  --color-magenta: #c678dd;
+  --color-cyan: #56b6c2;
+}
+
+body,
+button {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body,
+textarea,
+input[type="text"] {
+  color: var(--color-foreground);
+}
+
+body {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--color-dark-background);
+  margin: 0px;
+  padding: 0px;
+}
+
+main {
+  width: 100%;
+  height: 100%;
+  padding: 0px;
+}
+
+textarea,
+input[type="text"] {
+  border: none;
+  background-color: var(--color-background);
+}
+
+textarea:focus,
+input[type="text"]:focus {
+  outline: 1px solid var(--color-foreground);
+}
+
+input[type="text"] {
+  font-family: monospace;
+}
+
+button {
+  border: none;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  color: white;
+}
+
+div {
+  padding: 0.5vh 0.5vw;
+}
+
+.left,
+.right,
+.split-v .separator {
+  height: 99vh;
+  overflow: auto;
+}
+
+.left,
+.right {
+  min-width: 10vw;
+}
+
+.split-v .separator {
+  width: 8px;
+  padding: 0px;
+  background-color: var(--color-background);
+  cursor: col-resize;
+}
+
+.driver-v {
+  width: 49vw;
+}
+
+.split-h,
+.split-v {
+  display: flex;
+}
+
+.grow {
+  flex-grow: 1;
+}
+
+.split-h {
+  flex-direction: column;
+}
+
+#output-log,
+textarea {
+  display: block;
+  font-family: monospace;
+  font-size: 12pt;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  resize: none;
+}
+
+#output-log {
+  white-space: pre;
+}
+
+table,
+table tr,
+table th,
+table td {
+  border: none;
+}
+
+table th {
+  vertical-align: text-top;
+  padding: 5px 1em;
+  border-right: 1px solid #444;
+}
+
+table td {
+  padding: 5px 1em;
+}
+
+table.generated,
+table.generated tr,
+table.generated th,
+table.generated td {
+  border: 1px solid var(--color-gray);
+  border-collapse: collapse;
+}
+
+table.generated th,
+table.generated td {
+  padding: 2px 5px;
+}
+
+table.generated th {
+  text-align: left;
+}
+
+.messages > tr > :first-child {
+  font-style: italic;
+  color: var(--color-gray);
+}
+
+.poemd-log-class-name {
+  color: var(--color-yellow);
+}
+
+.poemd-log-boolean,
+.poemd-log-number {
+  color: var(--color-orange);
+}
+.poemd-log-string {
+  color: var(--color-green);
+}
+.poemd-log-regexp,
+.poemd-log-property {
+  color: var(--color-red);
+}
+.poemd-log-special-char,
+.poemd-log-circular {
+  color: var(--color-cyan);
+}
+.poemd-log-function {
+  color: var(--color-blue);
+}
+.poemd-log-symbol {
+  color: var(--color-magenta);
+}
+.poemd-log-null,
+.poemd-log-undefined {
+  font-weight: bold;
+  color: var(--color-gray);
+}

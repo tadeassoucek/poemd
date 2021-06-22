@@ -1,0 +1,12 @@
+#!/bin/sh
+
+if scripts/test $@; then
+  git add .
+
+  if ! git commit -v; then
+    scripts/log err "Couldn't commit."
+    exit 1
+  fi
+else
+  exit 1
+fi
