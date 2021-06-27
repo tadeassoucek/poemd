@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if scripts/test $@; then
+if scripts/full-test $@; then
   git add .
 
   if ! git commit -v; then

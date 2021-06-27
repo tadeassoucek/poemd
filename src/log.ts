@@ -29,18 +29,14 @@ export const exampleCLIWriteTableFunction: WriteTableFunc = (rows, headers) => {
 export let write: WriteFunc = () => {};
 export let writeTable: WriteTableFunc = () => {};
 
-type Prefix =
-  | string
-  | {
-      value: string;
-      length: number;
-    };
+export type ComplexPrefix = {
+  value: string;
+  length: number;
+};
 
-export let prefixes: {
-  debug: Prefix;
-  warn: Prefix;
-  err: Prefix;
-} = {
+export type Prefix = string | ComplexPrefix;
+
+export let prefixes: Record<string, Prefix> = {
   debug: "DBUG",
   warn: "WARN",
   err: "ERR!"

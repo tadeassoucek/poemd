@@ -1,5 +1,6 @@
 export let inspect: (val: any) => string;
 
+// Check if we're running inside of a node environment (assuming the node user didn't define a global "window" variable).
 if (typeof window === "undefined") {
   const { inspect: _inspect } = require("util");
   inspect = (val: any) =>
@@ -23,7 +24,9 @@ if (typeof window === "undefined") {
       return (
         '<span class="' +
         classPrefix +
-        'special-char">\\x' +
+        'special-char" title="Rendered: ' +
+        sub +
+        '">\\x' +
         sub.charCodeAt(0).toString(16).padStart(2, "0") +
         "</span>"
       );
@@ -36,7 +39,7 @@ if (typeof window === "undefined") {
   const noSpecialChars = /^[\w_$]+$/;
   const apostrophe = /'/g;
 
-  const _inspect = (val: any, depth: number, objects: object[]) => {
+  const _inspect = (val: any, depth: number, visited: object[]) => {
     switch (typeof val) {
       case "undefined":
       case "boolean":
@@ -75,8 +78,8 @@ if (typeof window === "undefined") {
       }
 
       case "object": {
-        if (objects.find((o) => o === val)) return `<span class="${classPrefix}circular">[Circular]</span>`;
-        const newObjects = [...objects, val];
+        if (visited.find((o) => o === val)) return `<span class="${classPrefix}circular">[Circular]</span>`;
+        const visitedCopy = [...visited, val];
 
         let indentation = indent.repeat(depth);
 
@@ -87,15 +90,15 @@ if (typeof window === "undefined") {
           let s = "[\n";
           val.forEach(
             (e, i) =>
-              (s += indentation + indent + _inspect(e, depth + 1, newObjects) + (i != val.length - 1 ? "," : "") + "\n")
+              (s +=
+                indentation + indent + _inspect(e, depth + 1, visitedCopy) + (i != val.length - 1 ? "," : "") + "\n")
           );
           return s + indentation + "]";
         }
 
         if (!Object.keys(val).length) return "{}";
         let s = "";
-        if (val.constructor)
-          s += `<span class="${classPrefix}class-name" title="This object is an instance of the &quot;${val.constructor.name}&quot; class.">${val.constructor.name}</span> `;
+        if (val.constructor) s += `<span class="${classPrefix}class-name">${val.constructor.name}</span> `;
         s += "{\n";
 
         const entries = Object.entries(val);
@@ -107,9 +110,9 @@ if (typeof window === "undefined") {
               indent +
               (noSpecialChars.test(k)
                 ? `<span class="${classPrefix}property">${k}</span>`
-                : _inspect(k, depth + 1, newObjects)) +
+                : _inspect(k, depth + 1, visitedCopy)) +
               ": " +
-              _inspect(v, depth + 1, newObjects) +
+              _inspect(v, depth + 1, visitedCopy) +
               (i != entries.length - 1 ? "," : "") +
               "\n")
         );
@@ -128,19 +131,21 @@ if (typeof window === "undefined") {
 
 export type OneOrMany<T> = T | T[];
 
-/**
- * Creates a deep clone of an object. Preserves prototypes.
- */
+/** Creates a deep clone of an object. Preserves prototypes. */
 export function clone(obj: any): any {
-  if (typeof obj === "object" && obj) {
+  if (obj instanceof Array) {
+    const newArr = [];
+    obj.forEach((e) => newArr.push(clone(e)));
+    return newArr;
+  } else if (obj instanceof Object) {
     const newObj = Object.create(Object.getPrototypeOf(obj));
     Object.entries(obj).forEach(([key, value]) => (newObj[key] = clone(value)));
-  }
-  return obj;
+    return newObj;
+  } else return obj;
 }
 
 /**
- * @param obj The object whose properties we overwrite.
+ * @param obj The object whose properties to overwrite.
  * @param defaults The object containing default values for properties in `obj`.
  * @returns A new object with those properties from `defaults` which are missing in `obj` replaced.
  */
@@ -154,7 +159,10 @@ export function setDefaults(obj: object, defaults: object) {
   return res;
 }
 
-export function getMax<T>(arr: T[], key: string): T {
+/**
+ * Finds the value of type `T` in `arr` with the largest numerical value stored in the property `key`.
+ */
+export function getMax<T>(arr: T[], key: keyof T): T {
   let max: T;
   for (const val of arr) if (!max || max[key] >= val[key]) max = val;
   return max;

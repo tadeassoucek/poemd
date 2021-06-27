@@ -16,7 +16,7 @@ v$PACKAGE_VERSION? [ynp] " response
   case $response in
     # yes (publish)
     [yY]* )
-      if scripts/test $@; then
+      if scripts/full-test $@; then
         if npm publish; then
           scripts/log info "Adding a tag"
 

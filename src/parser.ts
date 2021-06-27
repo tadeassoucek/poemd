@@ -1,8 +1,8 @@
 import { OneOrMany, setDefaults } from "./utils";
 import { Renderer } from "./renderers/renderer";
-import { debug, writeTable } from "./log";
 import { inspect } from "./utils";
 import { Token } from "./poem";
+import { debug } from "./log";
 
 type MatchBounds = "none" | "stanza" | "line";
 type OnNewTaskWhenBusy = "accept" | "reject" | "error";
@@ -79,7 +79,7 @@ export class Parser {
     this.charBuffer = "";
   }
 
-  private createStates() {
+  createStates() {
     this.initialNormalState = new Parser.State();
 
     const allSequences = [...this.sequences, ...this.marks];
@@ -115,10 +115,11 @@ export class Parser {
     })(this.initialNormalState, allSequences, "", 0);
 
     this.resetState();
-    debug(this.initialNormalState.toString());
   }
 
   reset() {
+    this.currentState = this.initialNormalState;
+    this.charBuffer = this.sequenceBuffer = "";
     this.tokens = [];
   }
 
@@ -132,19 +133,7 @@ export class Parser {
     this.sequenceBuffer = "";
   }
 
-  private table: string[][];
-
-  private reportChar(c: string) {
-    this.table.push([
-      inspect(c),
-      inspect(this.currentState.id),
-      inspect(this.charBuffer),
-      inspect(this.sequenceBuffer),
-      inspect(this.tokens.length)
-    ]);
-  }
-
-  private handleCharacter(c: string): void {
+  private handleChar(c: string) {
     // if we can continue to another state
     for (const conn of this.currentState.outConnections)
       if (c === conn.char) {
@@ -152,46 +141,50 @@ export class Parser {
         this.currentState = conn.out;
 
         // if the new state has a payload and no outgoing connections
-        if (this.currentState.payload && !this.currentState.outConnections.length) {
+        if (!this.currentState.outConnections.length) {
+          if (!this.currentState.payload)
+            throw new Parser.InternalError(
+              "Leaf state with no payload.",
+              "Any parser state can either lead to a different state, hold a payload, or lead to a different state " +
+                "and hold a payload. Since a leaf parser state leads to no other state by definition, it must have " +
+                "a payload.",
+              this.currentState
+            );
+
           this.flush();
           // push payload as token
           this.tokens.push(this.currentState.payload.clone());
-          // return to the initial state. we don't care about seqbuf
+          // return to the initial state. we don't care about the seqbuf
           this.resetState();
         } else this.sequenceBuffer += c;
 
-        this.reportChar(c);
         return;
       }
 
     // no state to continue to
 
     let state = this.currentState;
-    /** If true, we're still on the same state as before. */
-    let sameState = true;
 
     // return until you hit the initial state or a state with a payload
-    while (state != this.initialNormalState && !state.payload) {
-      state = state.inConnection.in;
-      sameState = false;
-    }
+    while (state != this.initialNormalState && !state.payload) state = state.inConnection.in;
 
     // the state we ended on has a payload
     if (state.payload) {
-      let pendingHandle: string;
-      // handle any extra characters in the seqbuf (e.g. if the sequences are ['-', '---'] and we have a '--' at the
+      let awaitingHandle: string;
+      // handle any extra characters in the seqbuf, e.g. if the sequences are ['-', '---'] and we have a '--' at the
       // input, we need to do a little bit of recursion to handle it as what it's supposed to be (two '-' sequences,
-      // in this case))
+      // in this case)
       if (this.sequenceBuffer.length !== state.payload.value.length) {
         this.sequenceBuffer = this.sequenceBuffer.substring(state.payload.value.length);
-        pendingHandle = this.sequenceBuffer;
+        awaitingHandle = this.sequenceBuffer;
       }
 
       this.flush();
       this.tokens.push(state.payload.clone());
       this.resetState();
+      this.addChar(c);
 
-      if (pendingHandle) pendingHandle.split("").forEach((c) => this.handleCharacter(c));
+      if (awaitingHandle) awaitingHandle.split("").forEach((c) => this.handleChar(c));
     }
     // we ended on the initial state
     else {
@@ -204,13 +197,11 @@ export class Parser {
       this.resetState(true);
       this.flush();
     }
-
-    this.reportChar(c);
   }
 
   /**
    * Resets the state and the sequence buffer.
-   * @param addToCharbuf If `true`, the sequence buffer is added to the char buffer.
+   * @param addToCharbuf If `true`, the sequence buffer is added to the char buffer before being overwritten.
    * @returns the value of the sequence buffer (before it was overwritten).
    */
   private resetState(addToCharbuf = false): string {
@@ -221,11 +212,8 @@ export class Parser {
     return val;
   }
 
-  parse(s: string) {
-    this.table = [];
-    (s + "\0").split("").forEach((c) => this.handleCharacter(c));
-    writeTable(this.table, ["char", "state #", "charbuf", "seqbuf", "toks"]);
-    debug(inspect(this.tokens));
+  parse(s: string): Token[] {
+    (s + "\0").split("").forEach((c) => this.handleChar(c));
     return this.tokens;
   }
 }
@@ -236,7 +224,7 @@ export namespace Parser {
     private static ID = 0;
 
     static resetID() {
-      return (State.ID = 0);
+      State.ID = 0;
     }
 
     /** Allows simple identification of the state. */
@@ -261,12 +249,7 @@ export namespace Parser {
 
     toString(depth = 0): string {
       let s = "(#" + this.id;
-      if (this.payload)
-        s +=
-          " " +
-          inspect(this.payload)
-            .replace(/\n/g, "")
-            .replace(/\s{2,}/g, " ");
+      if (this.payload) s += ` ${inspect(this.payload.type)}:${inspect(this.payload.value)}`;
       s += ")\n";
       const indent = "  ".repeat(depth + 1);
       for (const con of this.outConnections) s += indent + con.toString(depth + 1);
@@ -294,15 +277,15 @@ export namespace Parser {
   }
 
   export class InternalError extends Error {
-    readonly char: string;
-    readonly buffer: string;
+    readonly title: string;
+    readonly desc: string;
     readonly state: Parser.State;
 
-    constructor(message: string, char: string, buffer: string, state: Parser.State) {
-      super(message);
+    constructor(title: string, desc: string, state: Parser.State) {
+      super(`${title} (${desc})`);
       this.name = "Internal Parser Error";
-      this.char = char;
-      this.buffer = buffer;
+      this.title = title;
+      this.desc = desc;
       this.state = state;
     }
   }

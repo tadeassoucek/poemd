@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node lib/index.js",
     "format": "npx prettier --write .",
-    "full-test": "scripts/test",
+    "full-test": "scripts/full-test",
     "commit": "scripts/commit",
     "push": "scripts/push",
     "publish": "scripts/publish",

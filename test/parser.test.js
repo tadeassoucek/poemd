@@ -34,15 +34,19 @@ describe("Parser", () => {
 
   it("should correctly parse a couple of simple sequences", () => {
     assertDeepEqual(
-      parser.parse("a-b ~~~boh~~axfor ***hey***"),
+      parser.parse("a-b ~~~boh~~axfor ***hey*** *hello*"),
       [
         ["text", "a-b "],
         ["pending_mark", "~~~"],
         "boh~~axfor ",
         ["pending_mark", "**"],
         ["pending_mark", "*"],
-        "ey",
+        "hey",
         ["pending_mark", "**"],
+        ["pending_mark", "*"],
+        " ",
+        ["pending_mark", "*"],
+        "hello",
         ["pending_mark", "*"]
       ].map((e) => new poemd.poem.Token(typeof e === "string" ? "text" : e[0], typeof e === "string" ? e : e[1]))
     );
