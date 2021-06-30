@@ -1,7 +1,12 @@
+import { Token } from "./poem";
+
 export let inspect: (val: any) => string;
+let colors: typeof import("colors");
 
 // Check if we're running inside of a node environment (assuming the node user didn't define a global "window" variable).
 if (typeof window === "undefined") {
+  colors = require("colors");
+
   const { inspect: _inspect } = require("util");
   inspect = (val: any) =>
     _inspect(val, {
@@ -9,24 +14,24 @@ if (typeof window === "undefined") {
       depth: 99
     });
 } else {
+  const SPECIAL_CHARS = Object.entries({
+    "\\\\": "\\",
+    "\0": "0",
+    "\n": "n",
+    "\t": "t",
+    "\r": "r",
+    "\v": "v",
+    "\f": "f"
+  });
+
   const escapeString = (s: string) => {
-    for (const [key, val] of Object.entries({
-      "\\\\": "\\",
-      "\0": "0",
-      "\n": "n",
-      "\t": "t",
-      "\r": "r",
-      "\v": "v",
-      "\f": "f"
-    }))
+    for (const [key, val] of SPECIAL_CHARS)
       s = s.replace(new RegExp(key, "g"), `<span class="${classPrefix}special-char">\\${val}</span>`);
     s = s.replace(/[^ -~]/g, function (sub) {
       return (
         '<span class="' +
         classPrefix +
-        'special-char" title="Rendered: ' +
-        sub +
-        '">\\x' +
+        'special-char">\\x' +
         sub.charCodeAt(0).toString(16).padStart(2, "0") +
         "</span>"
       );
@@ -154,8 +159,9 @@ export function setDefaults(obj: object, defaults: object) {
   else if (!defaults || Object.keys(defaults).length == 0) return clone(obj);
 
   const res = {};
+  // we don't need to clone the values from `obj`
   for (const key in obj) res[key] = obj[key];
-  for (const key in defaults) if (obj[key] === undefined) res[key] = defaults[key];
+  for (const key in defaults) if (obj[key] === undefined) res[key] = clone(defaults[key]);
   return res;
 }
 
@@ -166,4 +172,31 @@ export function getMax<T>(arr: T[], key: keyof T): T {
   let max: T;
   for (const val of arr) if (!max || max[key] >= val[key]) max = val;
   return max;
+}
+
+function compose(...funcs: Function[]) {
+  return (...args: any) => funcs.reduce((acc, fn) => fn(acc), args);
+}
+
+const id = (arg: any) => arg;
+
+export function printColored(toks: Token[]) {
+  const funcs = new Map<Token.Type, (s: string) => string>([
+    [Token.Type.Raw, colors.green],
+    [Token.Type.OpeningQuote, compose((s: string) => s + "(", colors.red)],
+    [Token.Type.OpeningMark, compose((s: string) => s + "(", colors.red)],
+    [Token.Type.ClosingQuote, compose((s: string) => ")" + s, colors.red)],
+    [Token.Type.ClosingMark, compose((s: string) => ")" + s, colors.red)],
+    [Token.Type.PendingMark, compose((s: string) => s + "?", colors.blue)],
+    [Token.Type.VerseLineEnd, () => colors.cyan("\\n")]
+  ]);
+
+  let line = "";
+  toks.forEach((t) => {
+    line += (funcs.get(t.type) ?? id)(t.value);
+    if (t.type === Token.Type.VerseLineEnd) {
+      console.log(line);
+      line = "";
+    }
+  });
 }

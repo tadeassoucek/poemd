@@ -1,23 +1,8 @@
-import { OneOrMany, setDefaults } from "./utils";
+import { clone, OneOrMany, setDefaults } from "./utils";
 import { Renderer } from "./renderers/renderer";
 import { inspect } from "./utils";
 import { Token } from "./poem";
 import { debug } from "./log";
-
-type MatchBounds = "none" | "stanza" | "line";
-type OnNewTaskWhenBusy = "accept" | "reject" | "error";
-
-export type ParsingOptions = {
-  markdownMatchBounds?: MatchBounds;
-  quoteMatchBounds?: MatchBounds;
-  onNewTaskWhenBusy?: OnNewTaskWhenBusy;
-};
-
-const defaultParsingOptions: Required<ParsingOptions> = {
-  markdownMatchBounds: "stanza",
-  quoteMatchBounds: "none",
-  onNewTaskWhenBusy: "error"
-};
 
 export class Parser {
   readonly sequences: string[];
@@ -30,17 +15,25 @@ export class Parser {
 
   private charBuffer: string;
 
-  private options: ParsingOptions;
+  private options: Parser.Options;
+
+  private skipNext: boolean;
+
+  /**
+   * Different from `this.options.lineEndings` because if it's set to `Parser.LineEndings.Auto`, it's used to store the
+   * inferred line endings.
+   */
+  private lineEndings: Parser.LineEndings | "CR?";
 
   private tokens: Token[];
 
-  constructor(renderer?: Renderer, options?: ParsingOptions);
-  constructor(renderers?: Renderer[], options?: ParsingOptions);
-  constructor(sequences?: string[], marks?: string[], options?: ParsingOptions);
+  constructor(renderer?: Renderer, options?: Parser.Options);
+  constructor(renderers?: Renderer[], options?: Parser.Options);
+  constructor(sequences?: string[], marks?: string[], options?: Parser.Options);
   constructor(
     rendererRenderersOrSequences: string[] | OneOrMany<Renderer>,
-    marksOrOptions?: string[] | ParsingOptions,
-    definitelyOptions?: ParsingOptions
+    marksOrOptions?: string[] | Parser.Options,
+    definitelyOptions?: Parser.Options
   ) {
     this.sequences = [];
     this.marks = [];
@@ -66,13 +59,15 @@ export class Parser {
         if (typeof m === "string") this.marks.push(m);
         else throw new Error("unexpected type in second argument: " + typeof m);
       });
-    else if (marksOrOptions instanceof Object) this.options = setDefaults(marksOrOptions, defaultParsingOptions);
+    else if (marksOrOptions instanceof Object) this.options = setDefaults(marksOrOptions, Parser.defaultOptions);
     else if (marksOrOptions) throw new Error("second argument has to be an array of strings or an object");
 
     if (definitelyOptions) {
-      if (definitelyOptions instanceof Object) this.options = setDefaults(definitelyOptions, defaultParsingOptions);
+      if (definitelyOptions instanceof Object) this.options = setDefaults(definitelyOptions, Parser.defaultOptions);
       else throw new Error("third argument has to be an object");
     }
+
+    if (!this.options) this.options = clone(Parser.defaultOptions);
 
     this.createStates();
     this.tokens = [];
@@ -120,11 +115,21 @@ export class Parser {
   reset() {
     this.currentState = this.initialNormalState;
     this.charBuffer = this.sequenceBuffer = "";
+    this.lineEndings = void 0;
     this.tokens = [];
   }
 
+  private isLineEnding(c: string) {
+    if (c !== "\n" && c !== "\r") return false;
+    return (
+      [Parser.LineEndings.CRLF, Parser.LineEndings.Auto, "CR?"].includes(this.lineEndings) ||
+      (this.lineEndings === Parser.LineEndings.CR && c === "\r") ||
+      (this.lineEndings === Parser.LineEndings.LF && c === "\n")
+    );
+  }
+
   private addChar(c: string) {
-    if (c != "\0") this.charBuffer += c;
+    if (c !== "\0" && !this.isLineEnding(c)) this.charBuffer += c;
   }
 
   private flush() {
@@ -133,7 +138,41 @@ export class Parser {
     this.sequenceBuffer = "";
   }
 
-  private handleChar(c: string) {
+  private newLine() {
+    this.flush();
+    this.resetState();
+    this.tokens.push(new Token(Token.Type.VerseLineEnd));
+  }
+
+  private handleChar(c: string): void {
+    if (this.skipNext) return void (this.skipNext = false);
+
+    let isNewLine = false;
+
+    if (this.lineEndings === Parser.LineEndings.Auto) {
+      if (c === "\r" || c === "\n") {
+        this.lineEndings = c === "\r" ? "CR?" : Parser.LineEndings.LF;
+        isNewLine = true;
+      }
+    }
+    // either a "CR" or the beginning of a "CRLF", we don't know yet.
+    // only ever triggered right at the next character after the first '\r' in the file.
+    else if (this.lineEndings === "CR?") {
+      // we found '\r\n', thus the line ending is "CRLF"
+      if (c === "\n") {
+        this.lineEndings = Parser.LineEndings.CRLF;
+        return;
+      }
+      // otherwise, the line ending is "CR" and we can continue
+      else this.lineEndings = Parser.LineEndings.CR;
+    } else if (
+      ((this.lineEndings === Parser.LineEndings.CR || this.lineEndings === Parser.LineEndings.CRLF) && c === "\r") ||
+      (this.lineEndings === Parser.LineEndings.LF && c === "\n")
+    ) {
+      isNewLine = true;
+      this.skipNext = this.lineEndings === Parser.LineEndings.CRLF;
+    }
+
     // if we can continue to another state
     for (const conn of this.currentState.outConnections)
       if (c === conn.char) {
@@ -163,9 +202,8 @@ export class Parser {
 
     // no state to continue to
 
-    let state = this.currentState;
-
     // return until you hit the initial state or a state with a payload
+    let state = this.currentState;
     while (state != this.initialNormalState && !state.payload) state = state.inConnection.in;
 
     // the state we ended on has a payload
@@ -196,7 +234,7 @@ export class Parser {
     if (c === "\0") {
       this.resetState(true);
       this.flush();
-    }
+    } else if (isNewLine) this.newLine();
   }
 
   /**
@@ -213,7 +251,10 @@ export class Parser {
   }
 
   parse(s: string): Token[] {
+    this.lineEndings = this.options.lineEndings;
+
     (s + "\0").split("").forEach((c) => this.handleChar(c));
+    debug(`guessed line endings = ${inspect(this.lineEndings)}`);
     return this.tokens;
   }
 }
@@ -289,4 +330,17 @@ export namespace Parser {
       this.state = state;
     }
   }
+
+  export enum LineEndings {
+    Auto = "auto",
+    CR = "CR",
+    LF = "LF",
+    CRLF = "CRLF"
+  }
+
+  export const defaultOptions = {
+    lineEndings: LineEndings.Auto
+  };
+
+  export type Options = Partial<typeof defaultOptions>;
 }

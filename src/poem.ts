@@ -11,11 +11,11 @@ type TokenValue = string;
 
 export class Token implements ICloneable<Token> {
   type: Token.Type;
-  value: TokenValue;
+  value?: TokenValue;
 
   constructor(type: Token.Type, value?: TokenValue) {
     this.type = type;
-    this.value = value;
+    if (value) this.value = value;
   }
 
   /** Creates a new token with the same type and value. */
@@ -33,7 +33,8 @@ export namespace Token {
     ClosingMark = "closing_mark",
     OpeningQuote = "opening_quote",
     ClosingQuote = "closing_quote",
-    Sequence = "sequence"
+    Sequence = "sequence",
+    VerseLineEnd = "verse_line_end"
   }
 }
 

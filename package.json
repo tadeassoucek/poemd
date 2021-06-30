@@ -28,6 +28,7 @@
   "homepage": "https://github.com/tadeassoucek/poemd#readme",
   "devDependencies": {
     "@types/node": "^14.14.16",
+    "colors": "^1.4.0",
     "mocha": "^8.2.1",
     "prettier": "2.2.1",
     "timer-node": "^5.0.4",

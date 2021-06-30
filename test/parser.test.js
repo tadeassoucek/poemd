@@ -1,3 +1,4 @@
+const { assert } = require("node:console");
 const poemd = require("../lib/main");
 const assertDeepEqual = require("./assert-deep-equal");
 
@@ -50,5 +51,14 @@ describe("Parser", () => {
         ["pending_mark", "*"]
       ].map((e) => new poemd.poem.Token(typeof e === "string" ? "text" : e[0], typeof e === "string" ? e : e[1]))
     );
+  });
+
+  it("should properly guess line endings from content", () => {
+    parser.parse("a\nbcd");
+    assert(parser.lineEndings, poemd.Parser.LineEndings.LF);
+    parser.parse("a\r\nhello");
+    assert(parser.lineEndings, poemd.Parser.LineEndings.CRLF);
+    parser.parse("\r");
+    assert(parser.lineEndings, poemd.Parser.LineEndings.CR);
   });
 });
